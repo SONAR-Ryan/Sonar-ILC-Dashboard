@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Freight Index Linked Rate Adjustments Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: #0a0e27;
+            color: #e0e6ed;
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            padding: 2rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(45deg, #fff, #64b5f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+        
+        .header p {
+            color: #b3d4fc;
+            font-size: 1.1rem;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        .control-group {
+            background: #1a1f3a;
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 1px solid #2a3f5f;
+            flex: 1;
+            min-width: 250px;
+        }
+        
+        .control-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #8892b0;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        select, input {
+            width: 100%;
+            padding: 0.75rem;
+            background: #0a0e27;
+            border: 1px solid #2a3f5f;
+            border-radius: 6px;
+            color: #e0e6ed;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        select:hover, input:hover {
+            border-color: #4a6fa5;
+        }
+        
+        select:focus, input:focus {
+            outline: none;
+            border-color: #64b5f6;
+            box-shadow: 0 0 0 3px rgba(100, 181, 246, 0.1);
+        }
+        
+        input[type="file"] {
+            padding: 0.5rem;
+        }
+        
+        input[type="range"] {
+            cursor: pointer;
+        }
+        
+        .model-factor-display {
+            min-width: 60px;
+            text-align: right;
+            font-weight: 600;
+            color: #64b5f6;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .stat-card {
+            background: #1a1f3a;
+            padding: 2rem;
+            border-radius: 12px;
+            border: 1px solid #2a3f5f;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            border-color: #4a6fa5;
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #64b5f6, #42a5f5);
+        }
+        
+        .stat-card h3 {
+            color: #8892b0;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-value.positive {
+            color: #4ade80;
+        }
+        
+        .stat-value.negative {
+            color: #f87171;
+        }
+        
+        .stat-value.neutral {
+            color: #64b5f6;
+        }
+        
+        .stat-subtitle {
+            color: #8892b0;
+            font-size: 0.9rem;
+        }
+        
+        .chart-container {
+            background: #1a1f3a;
+            padding: 2rem;
+            border-radius: 12px;
+            border: 1px solid #2a3f5f;
+            margin-bottom: 2rem;
+            position: relative;
+        }
+        
+        .chart-wrapper {
+            position: relative;
+            height: 400px;
+            width: 100%;
+        }
+        
+        .chart-wrapper.small {
+            height: 300px;
+        }
+        
+        .chart-wrapper.large {
+            height: 500px;
+        }
+        
+        .chart-title {
+            font-size: 1.3rem;
+            margin-bottom: 1.5rem;
+            color: #e0e6ed;
+        }
+        
+        .table-container {
+            background: #1a1f3a;
+            padding: 2rem;
+            border-radius: 12px;
+            border: 1px solid #2a3f5f;
+            overflow-x: auto;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid #2a3f5f;
+        }
+        
+        th {
+            background: #0a0e27;
+            color: #8892b0;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+            position: sticky;
+            top: 0;
+        }
+        
+        tr:hover {
+            background: rgba(100, 181, 246, 0.05);
+        }
+        
+        .positive-change {
+            color: #4ade80;
+            font-weight: 600;
+        }
+        
+        .negative-change {
+            color: #f87171;
+            font-weight: 600;
+        }
+        
+        .above-threshold {
+            background: rgba(74, 222, 128, 0.1);
+            border-left: 3px solid #4ade80;
+        }
+        
+        .below-threshold {
+            background: rgba(248, 113, 113, 0.1);
+            border-left: 3px solid #f87171;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: #8892b0;
+        }
+        
+        .index-weights {
+            display: grid;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .index-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            background: #0a0e27;
+            border-radius: 6px;
+            border: 1px solid #2a3f5f;
+        }
+        
+        .index-name {
+            font-size: 0.9rem;
+            color: #e0e6ed;
+        }
+        
+        .index-weight {
+            font-weight: 700;
+            color: #64b5f6;
+        }
+        
+        .index-weight.negative {
+            color: #f87171;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .loading-indicator {
+            animation: pulse 2s infinite;
+        }
+        
+        .error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #ef4444;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Freight Index Linked Rate Adjustments</h1>
+        <p>Monitor and analyze freight rate adjustments based on multiple market indices</p>
+    </div>
+    
+    <div class="container">
+        <div class="controls">
+            <div class="control-group">
+                <label for="fileInput">Upload Excel File</label>
+                <input type="file" id="fileInput" accept=".xlsx" />
+            </div>
+            
+            <div class="control-group">
+                <label for="kmaSelect">Key Market Area</label>
+                <select id="kmaSelect">
+                    <option value="all">All Market Areas</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="yearSelect">Year</label>
+                <select id="yearSelect">
+                    <option value="2024">2024</option>
+                    <option value="2023">2023</option>
+                    <option value="2022">2022</option>
+                    <option value="2021">2021</option>
+                    <option value="2020">2020</option>
+                    <option value="2019">2019</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="modelFactor">Model Factor (%)</label>
+                <div class="control-row">
+                    <input type="range" id="modelFactorSlider" value="5" min="0" max="100" step="0.1" style="flex: 1;">
+                    <input type="number" id="modelFactorInput" value="5" min="0" max="100" step="0.1" style="width: 80px;">
+                </div>
+            </div>
+        </div>
+        
+        <div id="loadingMessage" class="loading">Please upload SONAR_TARGET_ILC.xlsx to begin</div>
+        <div id="errorMessage" class="error" style="display: none;"></div>
+        
+        <div id="dashboard" style="display: none;">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Average Index Composite</h3>
+                    <div class="stat-value" id="avgComposite">--</div>
+                    <div class="stat-subtitle" id="avgCompositeSubtitle">Loading...</div>
+                </div>
+                
+                <div class="stat-card">
+                    <h3>Average Rate Adjustment</h3>
+                    <div class="stat-value" id="avgAdjustment">--</div>
+                    <div class="stat-subtitle" id="avgAdjustmentSubtitle">With Model Factor</div>
+                </div>
+                
+                <div class="stat-card">
+                    <h3>Average Bundle RPM</h3>
+                    <div class="stat-value neutral" id="avgBundleRPM">--</div>
+                    <div class="stat-subtitle" id="bundleRPMSubtitle">Base Rate</div>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <h2 class="chart-title">Historical Index Composite Trends</h2>
+                <div class="chart-wrapper small">
+                    <canvas id="historicalChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Index Component Weights</h3>
+                    <div class="index-weights" id="indexWeights">
+                        <div class="loading-indicator">Loading index weights...</div>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <h3>Rate Adjustment Range</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
+                        <div>
+                            <div class="stat-subtitle">Minimum</div>
+                            <div class="stat-value negative" id="minAdjustment" style="font-size: 1.8rem;">--</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div class="stat-subtitle">Maximum</div>
+                            <div class="stat-value positive" id="maxAdjustment" style="font-size: 1.8rem;">--</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <h2 class="chart-title">Market Area Comparison</h2>
+                <div class="chart-wrapper large">
+                    <canvas id="comparisonChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="table-container">
+                <h2 class="chart-title">Detailed Rate Adjustments by Distribution Center</h2>
+                <div id="tableContent">
+                    <div class="loading">Loading data...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let data = {
+            targetDCs: [],
+            indexWeights: [],
+            indexComposite: {},
+            indexComponents: {}
+        };
+        
+        let charts = {
+            historical: null,
+            comparison: null
+        };
+        
+        // Chart.js default configuration
+        Chart.defaults.color = '#8892b0';
+        Chart.defaults.borderColor = '#2a3f5f';
+        Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif';
+        
+        // Event listeners
+        document.getElementById('fileInput').addEventListener('change', handleFileUpload);
+        document.getElementById('kmaSelect').addEventListener('change', updateDashboard);
+        document.getElementById('yearSelect').addEventListener('change', updateDashboard);
+        document.getElementById('modelFactorInput').addEventListener('input', (e) => {
+            document.getElementById('modelFactorSlider').value = e.target.value;
+            updateDashboard();
+        });
+        document.getElementById('modelFactorSlider').addEventListener('input', (e) => {
+            document.getElementById('modelFactorInput').value = e.target.value;
+            updateDashboard();
+        });
+        
+        async function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            document.getElementById('loadingMessage').textContent = 'Loading file...';
+            document.getElementById('errorMessage').style.display = 'none';
+            
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const workbook = XLSX.read(arrayBuffer);
+                
+                // Parse Target DCs
+                const targetSheet = workbook.Sheets['Target_DCs'];
+                data.targetDCs = XLSX.utils.sheet_to_json(targetSheet);
+                
+                // Parse Index Weights
+                const weightsSheet = workbook.Sheets['Index_Weights'];
+                data.indexWeights = XLSX.utils.sheet_to_json(weightsSheet);
+                
+                // Parse Index Composite
+                const compositeSheet = workbook.Sheets['Index_Composite'];
+                const compositeData = XLSX.utils.sheet_to_json(compositeSheet);
+                data.indexComposite = {};
+                compositeData.forEach(row => {
+                    data.indexComposite[row.DC_KMA] = row;
+                });
+                
+                // Parse Index Components
+                const componentSheets = ['Index_LMI.TPCP', 'Index_LMI.TPUT', 'Index_VCRPM1.USA', 'Index_OTVI', 'Index_OTRI'];
+                componentSheets.forEach(sheetName => {
+                    const sheet = workbook.Sheets[sheetName];
+                    if (sheet) {
+                        const componentData = XLSX.utils.sheet_to_json(sheet);
+                        const componentKey = sheetName.replace('Index_', '');
+                        data.indexComponents[componentKey] = {};
+                        componentData.forEach(row => {
+                            data.indexComponents[componentKey][row.DC_KMA] = row;
+                        });
+                    }
+                });
+                
+                // Initialize controls
+                initializeControls();
+                displayIndexWeights();
+                
+                document.getElementById('loadingMessage').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'block';
+                
+                updateDashboard();
+                
+            } catch (error) {
+                console.error('Error loading file:', error);
+                document.getElementById('errorMessage').textContent = 'Error loading file: ' + error.message;
+                document.getElementById('errorMessage').style.display = 'block';
+            }
+        }
+        
+        function initializeControls() {
+            const kmaSelect = document.getElementById('kmaSelect');
+            
+            // Get unique KMAs
+            const kmas = [...new Set(data.targetDCs.map(dc => dc.KMA))].sort();
+            
+            kmaSelect.innerHTML = '<option value="all">All Market Areas</option>';
+            kmas.forEach(kma => {
+                const option = document.createElement('option');
+                option.value = kma;
+                option.textContent = kma;
+                kmaSelect.appendChild(option);
+            });
+        }
+        
+        function displayIndexWeights() {
+            const container = document.getElementById('indexWeights');
+            container.innerHTML = '';
+            
+            data.indexWeights.forEach(index => {
+                const item = document.createElement('div');
+                item.className = 'index-item';
+                const weightClass = index.WEIGHT < 0 ? 'index-weight negative' : 'index-weight';
+                item.innerHTML = `
+                    <div class="index-name">${index.INDEX}</div>
+                    <div class="${weightClass}">${(index.WEIGHT * 100).toFixed(0)}%</div>
+                `;
+                container.appendChild(item);
+            });
+        }
+        
+        function updateDashboard() {
+            const selectedKMA = document.getElementById('kmaSelect').value;
+            const selectedYear = document.getElementById('yearSelect').value;
+            const modelFactor = parseFloat(document.getElementById('modelFactorInput').value) / 100;
+            
+            updateStats(selectedKMA, selectedYear, modelFactor);
+            updateHistoricalChart(selectedKMA);
+            updateComparisonChart(selectedYear, modelFactor);
+            updateTable(selectedKMA, selectedYear, modelFactor);
+        }
+        
+        function updateStats(kma, year, modelFactor) {
+            let avgComposite, avgAdjustment, avgBundleRPM, minAdjustment, maxAdjustment;
+            
+            if (kma === 'all') {
+                // Calculate averages across all KMAs
+                const compositeValues = Object.values(data.indexComposite)
+                    .map(kmaData => parseFloat(kmaData[year]) || 0)
+                    .filter(val => !isNaN(val) && val !== 0);
+                
+                avgComposite = compositeValues.length > 0 
+                    ? compositeValues.reduce((a, b) => a + b, 0) / compositeValues.length 
+                    : 0;
+                
+                avgAdjustment = avgComposite * modelFactor;
+                
+                // Average bundle RPM
+                avgBundleRPM = data.targetDCs.reduce((sum, dc) => sum + dc.BUNDLE_RPM, 0) / data.targetDCs.length;
+                
+                // Min/Max adjustments
+                const adjustments = compositeValues.map(v => v * modelFactor);
+                minAdjustment = Math.min(...adjustments);
+                maxAdjustment = Math.max(...adjustments);
+                
+                document.getElementById('avgCompositeSubtitle').textContent = `Average for ${year}`;
+                document.getElementById('bundleRPMSubtitle').textContent = 'Average Base Rate';
+            } else {
+                // Single KMA stats
+                const kmaComposite = data.indexComposite[kma];
+                avgComposite = kmaComposite ? (parseFloat(kmaComposite[year]) || 0) : 0;
+                avgAdjustment = avgComposite * modelFactor;
+                
+                // Get DCs for this KMA
+                const kmaDCs = data.targetDCs.filter(dc => dc.KMA === kma);
+                avgBundleRPM = kmaDCs.reduce((sum, dc) => sum + dc.BUNDLE_RPM, 0) / kmaDCs.length;
+                
+                // Historical min/max for this KMA
+                const years = ['2019', '2020', '2021', '2022', '2023', '2024'];
+                const kmaValues = years.map(y => (parseFloat(kmaComposite[y]) || 0) * modelFactor).filter(v => v !== 0);
+                minAdjustment = Math.min(...kmaValues);
+                maxAdjustment = Math.max(...kmaValues);
+                
+                document.getElementById('avgCompositeSubtitle').textContent = `${kma} - ${year}`;
+                document.getElementById('bundleRPMSubtitle').textContent = `${kma} Base Rate`;
+            }
+            
+            // Update display
+            document.getElementById('avgComposite').textContent = (avgComposite * 100).toFixed(2) + '%';
+            document.getElementById('avgComposite').className = avgComposite > 0 ? 'stat-value positive' : 'stat-value negative';
+            
+            document.getElementById('avgAdjustment').textContent = (avgAdjustment * 100).toFixed(2) + '%';
+            document.getElementById('avgAdjustment').className = avgAdjustment > 0 ? 'stat-value positive' : 'stat-value negative';
+            
+            document.getElementById('avgBundleRPM').textContent = '$' + avgBundleRPM.toFixed(2);
+            
+            document.getElementById('minAdjustment').textContent = (minAdjustment * 100).toFixed(2) + '%';
+            document.getElementById('maxAdjustment').textContent = (maxAdjustment * 100).toFixed(2) + '%';
+        }
+        
+        function updateHistoricalChart(kma) {
+            const ctx = document.getElementById('historicalChart').getContext('2d');
+            const years = ['2019', '2020', '2021', '2022', '2023', '2024'];
+            const modelFactor = parseFloat(document.getElementById('modelFactorInput').value) / 100;
+            
+            let datasets = [];
+            
+            if (kma === 'all') {
+                // Show average composite index
+                const avgData = years.map(year => {
+                    const values = Object.values(data.indexComposite)
+                        .map(kmaData => parseFloat(kmaData[year]) || 0)
+                        .filter(val => !isNaN(val) && val !== 0);
+                    return values.length > 0 ? (values.reduce((a, b) => a + b, 0) / values.length) * 100 : 0;
+                });
+                
+                datasets.push({
+                    label: 'Average Composite Index',
+                    data: avgData,
+                    borderColor: '#64b5f6',
+                    backgroundColor: 'rgba(100, 181, 246, 0.1)',
+                    borderWidth: 3,
+                    tension: 0.4,
+                    pointRadius: 6,
+                    pointHoverRadius: 8
+                });
+                
+                // Add adjusted line
+                const adjustedData = avgData.map(v => v * modelFactor);
+                datasets.push({
+                    label: 'With Model Factor',
+                    data: adjustedData,
+                    borderColor: '#4ade80',
+                    backgroundColor: 'rgba(74, 222, 128, 0.1)',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                });
+            } else {
+                // Show single KMA data
+                const kmaData = data.indexComposite[kma];
+                const compositeData = years.map(year => (parseFloat(kmaData[year]) || 0) * 100);
+                
+                datasets.push({
+                    label: `${kma} Composite Index`,
+                    data: compositeData,
+                    borderColor: '#64b5f6',
+                    backgroundColor: 'rgba(100, 181, 246, 0.1)',
+                    borderWidth: 3,
+                    tension: 0.4,
+                    pointRadius: 6,
+                    pointHoverRadius: 8
+                });
+                
+                // Add adjusted line
+                const adjustedData = compositeData.map(v => v * modelFactor);
+                datasets.push({
+                    label: 'With Model Factor',
+                    data: adjustedData,
+                    borderColor: '#4ade80',
+                    backgroundColor: 'rgba(74, 222, 128, 0.1)',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                });
+            }
+            
+            if (charts.historical) {
+                charts.historical.destroy();
+            }
+            
+            charts.historical = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: years,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.parsed.y.toFixed(2) + '%';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            },
+                            grid: {
+                                color: '#2a3f5f'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: '#2a3f5f'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateComparisonChart(year, modelFactor) {
+            const ctx = document.getElementById('comparisonChart').getContext('2d');
+            
+            // Get data for all KMAs
+            const kmaData = Object.entries(data.indexComposite).map(([kma, kmaValues]) => ({
+                kma: kma,
+                composite: parseFloat(kmaValues[year]) || 0,
+                adjusted: (parseFloat(kmaValues[year]) || 0) * modelFactor
+            })).filter(item => item.composite !== 0);
+            
+            // Sort by adjusted value
+            kmaData.sort((a, b) => b.adjusted - a.adjusted);
+            
+            // Take top 15 for visibility
+            const topData = kmaData.slice(0, 15);
+            
+            if (charts.comparison) {
+                charts.comparison.destroy();
+            }
+            
+            charts.comparison = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: topData.map(item => item.kma),
+                    datasets: [{
+                        label: 'Composite Index',
+                        data: topData.map(item => item.composite * 100),
+                        backgroundColor: 'rgba(100, 181, 246, 0.8)',
+                        borderColor: 'rgba(100, 181, 246, 1)',
+                        borderWidth: 2
+                    }, {
+                        label: 'With Model Factor',
+                        data: topData.map(item => item.adjusted * 100),
+                        backgroundColor: 'rgba(74, 222, 128, 0.8)',
+                        borderColor: 'rgba(74, 222, 128, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.parsed.y.toFixed(2) + '%';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            },
+                            grid: {
+                                color: '#2a3f5f'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateTable(kma, year, modelFactor) {
+            const tableContent = document.getElementById('tableContent');
+            
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>DC</th>
+                            <th>City/State</th>
+                            <th>KMA</th>
+                            <th>Base RPM</th>
+                            <th>Composite Index</th>
+                            <th>Adjusted Index</th>
+                            <th>Adjusted RPM</th>
+                            <th>$ Change</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            // Filter DCs based on selected KMA
+            let filteredDCs = data.targetDCs;
+            if (kma !== 'all') {
+                filteredDCs = data.targetDCs.filter(dc => dc.KMA === kma);
+            }
+            
+            filteredDCs.forEach(dc => {
+                const composite = data.indexComposite[dc.KMA];
+                const compositeValue = composite ? (parseFloat(composite[year]) || 0) : 0;
+                const adjustedIndex = compositeValue * modelFactor;
+                const adjustedRPM = dc.BUNDLE_RPM * (1 + adjustedIndex);
+                const dollarChange = adjustedRPM - dc.BUNDLE_RPM;
+                
+                const rowClass = adjustedIndex > 0.03 ? 'above-threshold' : (adjustedIndex < -0.03 ? 'below-threshold' : '');
+                const changeClass = adjustedIndex > 0 ? 'positive-change' : 'negative-change';
+                
+                html += `
+                    <tr class="${rowClass}">
+                        <td>${dc.DC}</td>
+                        <td>${dc.CITY_STATE}</td>
+                        <td>${dc.KMA}</td>
+                        <td>${dc.BUNDLE_RPM.toFixed(2)}</td>
+                        <td class="${compositeValue > 0 ? 'positive-change' : 'negative-change'}">${(compositeValue * 100).toFixed(2)}%</td>
+                        <td class="${changeClass}">${(adjustedIndex * 100).toFixed(2)}%</td>
+                        <td>${adjustedRPM.toFixed(2)}</td>
+                        <td class="${changeClass}">${dollarChange.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                    </tbody>
+                </table>
+            `;
+            
+            tableContent.innerHTML = html;
+        }
+        
+        // Auto-load file if it exists in the root directory (for GitHub Codespaces)
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const response = await fetch('/SONAR_TARGET_ILC.xlsx');
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const file = new File([blob], 'SONAR_TARGET_ILC.xlsx', { type: blob.type });
+                    
+                    // Create a fake event to trigger file upload
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(file);
+                    const fileInput = document.getElementById('fileInput');
+                    fileInput.files = dataTransfer.files;
+                    
+                    const event = new Event('change', { bubbles: true });
+                    fileInput.dispatchEvent(event);
+                }
+            } catch (error) {
+                console.log('Auto-load failed, waiting for manual upload');
+            }
+        });
+    </script>
+</body>
+</html>
