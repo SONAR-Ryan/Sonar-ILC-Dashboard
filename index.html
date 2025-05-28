@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DC Rate Adjustment Index</title>
+    <title>DC Rate Adjustment Timeline</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
@@ -40,6 +40,66 @@
             margin: 0 auto;
             padding: 2rem;
         }
+        
+        /* ----- NEW STYLES START ----- */
+        .view-toggle {
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 0.5rem;
+            border-bottom: 1px solid #2a3f5f;
+            padding-bottom: 1rem;
+        }
+
+        .view-toggle button {
+            background: transparent;
+            border: 1px solid #2a3f5f;
+            color: #8892b0;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .view-toggle button:hover {
+            background: #1a1f3a;
+            color: #e0e6ed;
+        }
+
+        .view-toggle button.active {
+            background: #64b5f6;
+            border-color: #64b5f6;
+            color: #0a0e27;
+            font-weight: 600;
+        }
+
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.95rem;
+        }
+
+        .summary-table th, .summary-table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid #2a3f5f;
+        }
+
+        .summary-table th {
+            color: #8892b0;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 0.5px;
+        }
+        
+        .summary-table td {
+            color: #e0e6ed;
+        }
+        
+        .summary-table tbody tr:hover {
+            background-color: #1a1f3a;
+        }
+        /* ----- NEW STYLES END ----- */
         
         /* Top Controls Bar */
         .controls-bar {
@@ -394,11 +454,16 @@
 </head>
 <body>
     <div class="header">
-        <h1>Target Distribution Center Rate Adjustment Index</h1>
+        <h1>Distribution Center Rate Adjustment Timeline</h1>
     </div>
     
     <div class="container">
-        <div class="controls-bar">
+        <div class="view-toggle">
+            <button class="active" data-view="summary">Summary View</button>
+            <button data-view="detail">Detail View</button>
+        </div>
+
+        <div class="controls-bar" id="controls-bar" style="display: none;">
             <div class="control-group">
                 <label for="dcSelect">Distribution Center:</label>
                 <select id="dcSelect">
@@ -436,6 +501,28 @@
         </div>
         
         <div id="errorMessage" class="error" style="display: none;"></div>
+
+        <div id="summaryDashboard">
+            <div class="timeline-section">
+                <h2 class="section-title">All Distribution Centers Overview</h2>
+                <div class="table-container">
+                    <table class="summary-table">
+                        <thead>
+                            <tr>
+                                <th>DC</th>
+                                <th>KMA</th>
+                                <th>City/State</th>
+                                <th>Base Rate</th>
+                                <th>2025 Projected Rate</th>
+                                <th>Total Change</th>
+                            </tr>
+                        </thead>
+                        <tbody id="summaryTableBody">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
         
         <div id="dashboard" style="display: none;">
             <div class="timeline-section">
@@ -496,7 +583,6 @@
         // Constants
         const YEARS = ['2019', '2020', '2021', '2022', '2023', '2024'];
         
-        // --- ADDED THIS MAP ---
         const COMPONENT_NAME_MAP = {
             'LMI.TPCP': 'LMI Transportation Capacity',
             'LMI.TPUT': 'LMI Transportation Utilization',
@@ -532,8 +618,18 @@
                 const parsed = parseFloat(value);
                 return isNaN(parsed) ? 0 : parsed;
             },
-            showElement: (id) => document.getElementById(id).style.display = 'block',
-            hideElement: (id) => document.getElementById(id).style.display = 'none',
+            showElement: (id) => {
+                const el = document.getElementById(id);
+                if(el) el.style.display = 'block';
+            },
+            showFlexElement: (id) => {
+                 const el = document.getElementById(id);
+                if(el) el.style.display = 'flex';
+            },
+            hideElement: (id) => {
+                 const el = document.getElementById(id);
+                if(el) el.style.display = 'none';
+            },
             setElementText: (id, text) => document.getElementById(id).textContent = text,
             showError: (message) => {
                 utils.setElementText('errorMessage', message);
@@ -552,16 +648,18 @@
             setupEventListeners();
             
             try {
-                // Try to auto-load from root directory
                 const response = await fetch('/Sonar-ILC-Dashboard/SONAR_TARGET_ILC.xlsx');
+
                 if (response.ok) {
                     const blob = await response.blob();
                     const arrayBuffer = await blob.arrayBuffer();
                     await loadExcelData(arrayBuffer);
                 } else {
+                    console.error('Failed to fetch Excel file. Status:', response.status);
                     showFileInput();
                 }
             } catch (error) {
+                console.error('Error fetching or processing Excel file:', error);
                 showFileInput();
             }
         }
@@ -572,6 +670,32 @@
             document.getElementById('modelFactor').addEventListener('input', handleModelFactorChange);
             document.getElementById('threshold').addEventListener('input', handleThresholdChange);
             document.getElementById('fileInput').addEventListener('change', handleFileUpload);
+            
+            // EVENT LISTENERS FOR VIEW TOGGLE
+            document.querySelectorAll('.view-toggle button').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const view = e.target.dataset.view;
+
+                    // Update button styles
+                    document.querySelectorAll('.view-toggle button').forEach(btn => btn.classList.remove('active'));
+                    e.target.classList.add('active');
+
+                    // Toggle views
+                    if (view === 'summary') {
+                        utils.showElement('summaryDashboard');
+                        utils.hideElement('dashboard');
+                        utils.hideElement('controls-bar');
+                    } else {
+                        utils.hideElement('summaryDashboard');
+                        utils.showElement('dashboard');
+                        utils.showFlexElement('controls-bar');
+                        // If no DC is selected in detail view, show a message
+                        if (!state.ui.selectedDC) {
+                             resetDisplay();
+                        }
+                    }
+                });
+            });
         }
         
         // File handling
@@ -599,7 +723,6 @@
                 
                 const workbook = XLSX.read(arrayBuffer);
                 
-                // Validate required sheets
                 const requiredSheets = ['Target_DCs', 'Index_Weights', 'Index_Composite', ...COMPONENT_SHEETS];
                 const missingSheets = requiredSheets.filter(sheet => !workbook.Sheets[sheet]);
                 
@@ -607,13 +730,15 @@
                     throw new Error(`Missing required sheets: ${missingSheets.join(', ')}`);
                 }
                 
-                // Parse data
                 parseWorkbookData(workbook);
-                
-                // Initialize UI
                 initializeDCSelector();
+                
+                // RENDER THE SUMMARY PAGE ON LOAD
+                renderSummaryPage();
+                
                 utils.hideElement('loadingMessage');
-                utils.showElement('dashboard');
+                // Show summary by default
+                utils.showElement('summaryDashboard');
                 
             } catch (error) {
                 utils.showError(`Error processing data: ${error.message}`);
@@ -622,18 +747,15 @@
         }
         
         function parseWorkbookData(workbook) {
-            // Parse basic sheets
             state.data.targetDCs = XLSX.utils.sheet_to_json(workbook.Sheets['Target_DCs']);
             state.data.indexWeights = XLSX.utils.sheet_to_json(workbook.Sheets['Index_Weights']);
             
-            // Parse composite data
             const compositeData = XLSX.utils.sheet_to_json(workbook.Sheets['Index_Composite']);
             state.data.indexComposite = {};
             compositeData.forEach(row => {
                 state.data.indexComposite[row.DC_KMA] = row;
             });
             
-            // Parse component sheets
             COMPONENT_SHEETS.forEach(sheetName => {
                 const componentData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
                 const componentKey = sheetName.replace('Index_', '');
@@ -648,7 +770,6 @@
             const select = document.getElementById('dcSelect');
             select.innerHTML = '<option value="">Select a DC...</option>';
             
-            // Get unique KMAs and sort by DC number
             const dcs = state.data.targetDCs
                 .filter(dc => state.data.indexComposite[dc.KMA])
                 .sort((a, b) => a.DC - b.DC);
@@ -669,7 +790,6 @@
                 resetDisplay();
                 return;
             }
-            
             updateDisplay();
         }
         
@@ -678,6 +798,7 @@
             state.ui.modelFactor = value / 100;
             utils.setElementText('modelFactorBadge', `Model Factor: ${value}%`);
             
+            renderSummaryPage(); // Recalculate summary if model factor changes
             if (state.ui.selectedDC) {
                 updateDisplay();
             }
@@ -685,7 +806,8 @@
         
         function handleThresholdChange(e) {
             state.ui.threshold = utils.safeParseFloat(e.target.value) / 100;
-            
+
+            renderSummaryPage(); // Recalculate summary if threshold changes
             if (state.ui.selectedDC) {
                 updateDisplay();
             }
@@ -707,29 +829,25 @@
             const dcInfo = state.data.targetDCs.find(dc => dc.KMA === state.ui.selectedDC);
             if (!dcInfo) return;
             
-            // Update DC info
-            utils.showElement('dcInfo');
+            utils.showFlexElement('dcInfo');
             utils.setElementText('baseRate', utils.formatCurrency(dcInfo.BUNDLE_RPM));
             
-            // Calculate and display current rate (2025 based on 2024 index)
-            const currentRate = calculateRateForYear('2025');
+            const currentRate = calculateRateForYear('2025', state.ui.selectedDC);
             utils.setElementText('currentRate', utils.formatCurrency(currentRate));
             
-            // Update all visualizations
             updateYearCards();
             updateYearDetails();
             updateHistoricalChart();
         }
         
-        function calculateRateForYear(targetYear) {
-            const dcInfo = state.data.targetDCs.find(dc => dc.KMA === state.ui.selectedDC);
-            const composite = state.data.indexComposite[state.ui.selectedDC];
+        function calculateRateForYear(targetYear, dcKMA) {
+            const dcInfo = state.data.targetDCs.find(dc => dc.KMA === dcKMA);
+            const composite = state.data.indexComposite[dcKMA];
             
             if (!dcInfo || !composite) return 0;
             
             let rate = dcInfo.BUNDLE_RPM;
             
-            // For each year, check if the PREVIOUS year's index affects this year's rate
             for (const year of YEARS) {
                 if (parseInt(year) >= parseInt(targetYear)) break;
                 
@@ -740,8 +858,37 @@
                     rate = rate * (1 + adjustedValue);
                 }
             }
-            
             return rate;
+        }
+
+        // FUNCTION TO RENDER THE SUMMARY PAGE
+        function renderSummaryPage() {
+            const tableBody = document.getElementById('summaryTableBody');
+            tableBody.innerHTML = '';
+
+            const allDcs = state.data.targetDCs.sort((a, b) => a.DC - b.DC);
+
+            allDcs.forEach(dc => {
+                if (!state.data.indexComposite[dc.KMA]) return;
+
+                const baseRate = dc.BUNDLE_RPM;
+                const projectedRate = calculateRateForYear('2025', dc.KMA);
+                const totalChange = baseRate > 0 ? (projectedRate - baseRate) / baseRate : 0;
+                
+                const changeClass = totalChange > 0.001 ? 'positive' : totalChange < -0.001 ? 'negative' : 'neutral';
+                const totalChangeFormatted = utils.formatPercent(totalChange);
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>DC ${dc.DC}</td>
+                    <td>${dc.KMA}</td>
+                    <td>${dc.CITY_STATE}</td>
+                    <td>${utils.formatCurrency(baseRate)}</td>
+                    <td>${utils.formatCurrency(projectedRate)}</td>
+                    <td class="${changeClass}">${totalChangeFormatted}</td>
+                `;
+                tableBody.appendChild(row);
+            });
         }
         
         function updateYearCards() {
@@ -756,7 +903,6 @@
             
             container.innerHTML = '';
             
-            // Add 2019 as base year
             const card2019 = createYearCard('2019', 0, dcInfo.BUNDLE_RPM, false, state.ui.selectedYear === '2019', true);
             card2019.addEventListener('click', () => {
                 state.ui.selectedYear = '2019';
@@ -765,20 +911,16 @@
             });
             container.appendChild(card2019);
             
-            // Track current rate starting from base
             let currentRate = dcInfo.BUNDLE_RPM;
             
-            // Add year cards starting from 2020
-            // Each year's rate is affected by the PREVIOUS year's index
             for (let i = 0; i < YEARS.length; i++) {
                 const year = YEARS[i];
-                const displayYear = (parseInt(year) + 1).toString(); // Display year is index year + 1
+                const displayYear = (parseInt(year) + 1).toString();
                 
-                if (parseInt(displayYear) <= 2019) continue; // Skip 2019 and earlier
+                if (parseInt(displayYear) <= 2019) continue;
                 
                 const compositeValue = utils.safeParseFloat(composite[year]);
                 
-                // Skip if no data
                 if (composite[year] === '-' || composite[year] === undefined) {
                     continue;
                 }
@@ -842,11 +984,9 @@
         }
         
         function updateYearDetails() {
-            // For years 2020-2025, we need to show the PREVIOUS year's index data
             const selectedYear = state.ui.selectedYear;
             const indexYear = (parseInt(selectedYear) - 1).toString();
             
-            // Can't show details for 2019 (base year, no adjustments)
             if (parseInt(selectedYear) <= 2019) {
                 utils.hideElement('yearDetails');
                 return;
@@ -866,7 +1006,6 @@
             updateRateCalculation(selectedYear, indexYear);
         }
         
-        // --- UPDATED THIS FUNCTION ---
         function updateComponentBreakdown(indexYear) {
             const container = document.getElementById('componentBreakdown');
             const composite = state.data.indexComposite[state.ui.selectedDC];
@@ -874,19 +1013,14 @@
 
             let html = '';
 
-            // Add individual components
             state.data.indexWeights.forEach(weight => {
                 const componentData = state.data.indexComponents[weight.INDEX];
                 if (!componentData || !componentData[state.ui.selectedDC]) return;
                 
-                // Look up the display name from your map.
-                // If a name isn't in the map, it defaults to the original name.
                 const displayName = COMPONENT_NAME_MAP[weight.INDEX] || weight.INDEX;
                 
                 const value = utils.safeParseFloat(componentData[state.ui.selectedDC][indexYear]);
-                const contribution = value * weight.WEIGHT;
                 
-                // Use the new `displayName` variable here
                 html += `
                     <div class="component-row">
                         <div class="component-name">${displayName} (${(weight.WEIGHT * 100).toFixed(0)}%)</div>
@@ -923,13 +1057,10 @@
             const adjustedValue = compositeValue * state.ui.modelFactor;
             const meetsThreshold = Math.abs(adjustedValue) >= state.ui.threshold;
             
-            // Calculate rate at the beginning of the selected year (before any adjustment)
-            const prevRate = calculateRateForYear((parseInt(selectedYear) - 1).toString());
+            const prevRate = calculateRateForYear((parseInt(selectedYear) - 1).toString(), state.ui.selectedDC);
             
-            // Calculate new rate for the selected year
             const newRate = meetsThreshold ? prevRate * (1 + adjustedValue) : prevRate;
             
-            // Update display
             utils.setElementText('prevRate', utils.formatCurrency(prevRate));
             utils.setElementText('newRate', utils.formatCurrency(newRate));
             
@@ -955,21 +1086,18 @@
             
             if (!composite || !dcInfo) return;
             
-            // Prepare data - rates from 2019-2025
             const chartYears = ['2019', '2020', '2021', '2022', '2023', '2024', '2025'];
-            const indexYears = YEARS; // 2019-2024
+            const indexYears = YEARS;
             
             let currentRate = dcInfo.BUNDLE_RPM;
-            const rates = [currentRate]; // 2019 base rate
-            const adjustments = [0]; // No adjustment for 2019
+            const rates = [currentRate];
+            const adjustments = [0];
             
-            // Calculate rates for 2020-2025 based on 2019-2024 indices
             for (let i = 0; i < indexYears.length; i++) {
                 const indexYear = indexYears[i];
                 const compositeValue = utils.safeParseFloat(composite[indexYear]);
                 const adjustedValue = compositeValue * state.ui.modelFactor;
                 
-                // This adjustment affects the NEXT year's rate
                 adjustments.push(adjustedValue * 100);
                 
                 if (Math.abs(adjustedValue) >= state.ui.threshold) {
@@ -978,12 +1106,10 @@
                 rates.push(currentRate);
             }
             
-            // Destroy existing chart
             if (state.chart) {
                 state.chart.destroy();
             }
             
-            // Create new chart
             state.chart = new Chart(ctx, {
                 type: 'line',
                 data: {
