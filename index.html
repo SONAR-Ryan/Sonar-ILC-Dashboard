@@ -553,7 +553,7 @@
             
             try {
                 // Try to auto-load from root directory
-                const response = await fetch('/SONAR_TARGET_ILC.xlsx');
+                const response = await fetch('/Sonar-ILC-Dashboard/SONAR_TARGET_ILC.xlsx');
                 if (response.ok) {
                     const blob = await response.blob();
                     const arrayBuffer = await blob.arrayBuffer();
