@@ -41,7 +41,6 @@
             padding: 2rem;
         }
         
-        /* ----- NEW STYLES START ----- */
         .view-toggle {
             margin-bottom: 2rem;
             display: flex;
@@ -99,9 +98,47 @@
         .summary-table tbody tr:hover {
             background-color: #1a1f3a;
         }
-        /* ----- NEW STYLES END ----- */
         
-        /* Top Controls Bar */
+        .summary-table th.sortable {
+            cursor: pointer;
+            position: relative;
+        }
+        .summary-table th.sortable:hover {
+            color: #e0e6ed;
+        }
+        .summary-table th.sortable::after {
+            content: '⬍';
+            position: absolute;
+            right: 0.75rem;
+            color: #8892b0;
+            opacity: 0.5;
+        }
+        .summary-table th.sort-asc::after {
+            content: '⬏';
+            opacity: 1;
+        }
+        .summary-table th.sort-desc::after {
+            content: '⬎';
+            opacity: 1;
+        }
+
+        .data-bar-cell {
+            position: relative;
+            z-index: 1;
+        }
+        .data-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            background-color: #4ade80; /* Default color */
+            opacity: 0.2;
+            z-index: -1;
+        }
+        .data-bar.negative {
+            background-color: #f87171;
+        }
+        
         .controls-bar {
             background: #1a1f3a;
             padding: 1.5rem;
@@ -184,7 +221,6 @@
             color: #64b5f6;
         }
         
-        /* Main Timeline View */
         .timeline-section {
             background: #1a1f3a;
             padding: 2rem;
@@ -276,7 +312,6 @@
             color: #8892b0;
         }
         
-        /* Index Breakdown for Selected Year */
         .breakdown-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -366,7 +401,6 @@
             color: #f87171;
         }
         
-        /* Charts */
         .chart-container {
             position: relative;
             height: 400px;
@@ -431,7 +465,6 @@
             text-align: center;
         }
         
-        /* Model Factor Badge */
         .model-factor-badge {
             background: rgba(100, 181, 246, 0.2);
             border: 1px solid #64b5f6;
@@ -509,16 +542,16 @@
                     <table class="summary-table">
                         <thead>
                             <tr>
-                                <th>DC</th>
-                                <th>KMA</th>
+                                <th class="sortable" data-sort="dc">DC</th>
+                                <th class="sortable" data-sort="kma">KMA</th>
                                 <th>City/State</th>
-                                <th>Base Rate</th>
-                                <th>2025 Projected Rate</th>
-                                <th>Total Change</th>
+                                <th class="sortable" data-sort="baseRate">Base Rate</th>
+                                <th class="sortable" data-sort="projectedRate">2025 Projected Rate</th>
+                                <th class="sortable sort-desc" data-sort="totalChange">Total Change</th>
                             </tr>
                         </thead>
                         <tbody id="summaryTableBody">
-                            </tbody>
+                        </tbody>
                     </table>
                 </div>
             </div>
@@ -531,7 +564,7 @@
                     <span class="model-factor-badge" id="modelFactorBadge">Model Factor: 10%</span>
                 </h2>
                 <div class="year-cards" id="yearCards">
-                    </div>
+                </div>
             </div>
             
             <div class="timeline-section" id="yearDetails" style="display: none;">
@@ -542,7 +575,7 @@
                     <div class="breakdown-section">
                         <h3 style="margin-bottom: 1rem; color: #64b5f6;">Component Values</h3>
                         <div id="componentBreakdown">
-                            </div>
+                        </div>
                     </div>
                     <div class="breakdown-section">
                         <h3 style="margin-bottom: 1rem; color: #64b5f6;">Rate Calculation</h3>
@@ -561,10 +594,8 @@
                             </div>
                         </div>
                         <div class="note" id="thresholdNote" style="display: none;">
-                            Rate adjustment applied because the adjusted index exceeded the threshold.
                         </div>
                         <div class="note" id="noChangeNote" style="display: none;">
-                            No rate adjustment applied because the adjusted index did not exceed the threshold.
                         </div>
                     </div>
                 </div>
@@ -671,16 +702,12 @@
             document.getElementById('threshold').addEventListener('input', handleThresholdChange);
             document.getElementById('fileInput').addEventListener('change', handleFileUpload);
             
-            // EVENT LISTENERS FOR VIEW TOGGLE
             document.querySelectorAll('.view-toggle button').forEach(button => {
                 button.addEventListener('click', (e) => {
                     const view = e.target.dataset.view;
-
-                    // Update button styles
                     document.querySelectorAll('.view-toggle button').forEach(btn => btn.classList.remove('active'));
                     e.target.classList.add('active');
 
-                    // Toggle views
                     if (view === 'summary') {
                         utils.showElement('summaryDashboard');
                         utils.hideElement('dashboard');
@@ -689,11 +716,28 @@
                         utils.hideElement('summaryDashboard');
                         utils.showElement('dashboard');
                         utils.showFlexElement('controls-bar');
-                        // If no DC is selected in detail view, show a message
                         if (!state.ui.selectedDC) {
                              resetDisplay();
                         }
                     }
+                });
+            });
+
+            document.querySelectorAll('.summary-table th.sortable').forEach(header => {
+                header.addEventListener('click', () => {
+                    const sortKey = header.dataset.sort;
+                    let sortOrder = 'asc';
+                    
+                    if (header.classList.contains('sort-asc')) {
+                        sortOrder = 'desc';
+                    }
+
+                    document.querySelectorAll('.summary-table th.sortable').forEach(th => {
+                        th.classList.remove('sort-asc', 'sort-desc');
+                    });
+                    header.classList.add(sortOrder === 'asc' ? 'sort-asc' : 'sort-desc');
+
+                    renderSummaryPage(sortKey, sortOrder);
                 });
             });
         }
@@ -733,11 +777,9 @@
                 parseWorkbookData(workbook);
                 initializeDCSelector();
                 
-                // RENDER THE SUMMARY PAGE ON LOAD
-                renderSummaryPage();
+                renderSummaryPage('totalChange', 'desc'); // Default sort
                 
                 utils.hideElement('loadingMessage');
-                // Show summary by default
                 utils.showElement('summaryDashboard');
                 
             } catch (error) {
@@ -798,7 +840,7 @@
             state.ui.modelFactor = value / 100;
             utils.setElementText('modelFactorBadge', `Model Factor: ${value}%`);
             
-            renderSummaryPage(); // Recalculate summary if model factor changes
+            renderSummaryPage('totalChange', 'desc');
             if (state.ui.selectedDC) {
                 updateDisplay();
             }
@@ -807,7 +849,7 @@
         function handleThresholdChange(e) {
             state.ui.threshold = utils.safeParseFloat(e.target.value) / 100;
 
-            renderSummaryPage(); // Recalculate summary if threshold changes
+            renderSummaryPage('totalChange', 'desc');
             if (state.ui.selectedDC) {
                 updateDisplay();
             }
@@ -861,31 +903,67 @@
             return rate;
         }
 
-        // FUNCTION TO RENDER THE SUMMARY PAGE
-        function renderSummaryPage() {
+        function renderSummaryPage(sortKey = 'dc', sortOrder = 'asc') {
             const tableBody = document.getElementById('summaryTableBody');
             tableBody.innerHTML = '';
 
-            const allDcs = state.data.targetDCs.sort((a, b) => a.DC - b.DC);
-
-            allDcs.forEach(dc => {
-                if (!state.data.indexComposite[dc.KMA]) return;
-
+            let summaryData = state.data.targetDCs.map(dc => {
+                if (!state.data.indexComposite[dc.KMA]) return null;
                 const baseRate = dc.BUNDLE_RPM;
                 const projectedRate = calculateRateForYear('2025', dc.KMA);
                 const totalChange = baseRate > 0 ? (projectedRate - baseRate) / baseRate : 0;
-                
-                const changeClass = totalChange > 0.001 ? 'positive' : totalChange < -0.001 ? 'negative' : 'neutral';
-                const totalChangeFormatted = utils.formatPercent(totalChange);
+                return {
+                    dc: dc.DC,
+                    kma: dc.KMA,
+                    cityState: dc.CITY_STATE,
+                    baseRate: baseRate,
+                    projectedRate: projectedRate,
+                    totalChange: totalChange,
+                };
+            }).filter(Boolean);
 
+            summaryData.sort((a, b) => {
+                if (sortKey === 'totalChange') {
+                    const groupA = Math.sign(a.totalChange);
+                    const groupB = Math.sign(b.totalChange);
+                    if (sortOrder === 'desc') {
+                        if (groupA !== groupB) return groupB - groupA;
+                        return b.totalChange - a.totalChange;
+                    } else {
+                        if (groupA !== groupB) return groupA - groupB;
+                        return a.totalChange - b.totalChange;
+                    }
+                }
+                
+                let valA = a[sortKey];
+                let valB = b[sortKey];
+                if (typeof valA === 'string') {
+                    valA = valA.toLowerCase();
+                    valB = valB.toLowerCase();
+                }
+                if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+                if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            const maxChange = Math.max(...summaryData.map(d => Math.abs(d.totalChange)));
+
+            summaryData.forEach(data => {
+                const changeClass = data.totalChange > 0.001 ? 'positive' : data.totalChange < -0.001 ? 'negative' : 'neutral';
+                const totalChangeFormatted = utils.formatPercent(data.totalChange);
+                const icon = changeClass === 'positive' ? '▲' : (changeClass === 'negative' ? '▼' : '');
+                const barWidth = maxChange > 0 ? (Math.abs(data.totalChange) / maxChange) * 100 : 0;
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>DC ${dc.DC}</td>
-                    <td>${dc.KMA}</td>
-                    <td>${dc.CITY_STATE}</td>
-                    <td>${utils.formatCurrency(baseRate)}</td>
-                    <td>${utils.formatCurrency(projectedRate)}</td>
-                    <td class="${changeClass}">${totalChangeFormatted}</td>
+                    <td>DC ${data.dc}</td>
+                    <td>${data.kma}</td>
+                    <td>${data.cityState}</td>
+                    <td>${utils.formatCurrency(data.baseRate)}</td>
+                    <td>${utils.formatCurrency(data.projectedRate)}</td>
+                    <td class="data-bar-cell">
+                        <div class="data-bar ${changeClass}" style="width: ${barWidth}%;"></div>
+                        <span>${icon} ${totalChangeFormatted}</span>
+                    </td>
                 `;
                 tableBody.appendChild(row);
             });
@@ -916,14 +994,9 @@
             for (let i = 0; i < YEARS.length; i++) {
                 const year = YEARS[i];
                 const displayYear = (parseInt(year) + 1).toString();
-                
                 if (parseInt(displayYear) <= 2019) continue;
-                
                 const compositeValue = utils.safeParseFloat(composite[year]);
-                
-                if (composite[year] === '-' || composite[year] === undefined) {
-                    continue;
-                }
+                if (composite[year] === '-' || composite[year] === undefined) continue;
                 
                 const adjustedValue = compositeValue * state.ui.modelFactor;
                 const meetsThreshold = Math.abs(adjustedValue) >= state.ui.threshold;
@@ -932,22 +1005,12 @@
                     currentRate = currentRate * (1 + adjustedValue);
                 }
                 
-                const card = createYearCard(
-                    displayYear, 
-                    adjustedValue, 
-                    currentRate, 
-                    meetsThreshold, 
-                    displayYear === state.ui.selectedYear,
-                    false,
-                    `Based on ${year} index`
-                );
-                
+                const card = createYearCard(displayYear, adjustedValue, currentRate, meetsThreshold, displayYear === state.ui.selectedYear, false, `Based on ${year} index`);
                 card.addEventListener('click', () => {
                     state.ui.selectedYear = displayYear;
                     updateYearCards();
                     updateYearDetails();
                 });
-                
                 container.appendChild(card);
             }
         }
@@ -955,53 +1018,36 @@
         function createYearCard(year, adjustedValue, rate, meetsThreshold, isActive, isBase = false, subtitle = '') {
             const card = document.createElement('div');
             card.className = 'year-card';
-            
             if (meetsThreshold) {
                 card.className += ' threshold-met';
-                if (adjustedValue < 0) {
-                    card.className += ' negative';
-                }
+                if (adjustedValue < 0) card.className += ' negative';
             }
-            
-            if (isActive) {
-                card.className += ' active';
-            }
-            
+            if (isActive) card.className += ' active';
             const changeClass = adjustedValue > 0 ? 'positive' : adjustedValue < 0 ? 'negative' : 'neutral';
-            
             let changeText = isBase ? 'Base Rate' : utils.formatPercent(adjustedValue);
-            
             card.innerHTML = `
                 <div class="year-number">${year}</div>
                 ${subtitle ? `<div style="font-size: 0.7rem; color: #8892b0; margin-bottom: 0.3rem;">${subtitle}</div>` : ''}
-                <div class="year-change ${changeClass}">
-                    ${changeText}
-                </div>
+                <div class="year-change ${changeClass}">${changeText}</div>
                 <div class="year-rate">${utils.formatCurrency(rate)}</div>
             `;
-            
             return card;
         }
         
         function updateYearDetails() {
             const selectedYear = state.ui.selectedYear;
             const indexYear = (parseInt(selectedYear) - 1).toString();
-            
             if (parseInt(selectedYear) <= 2019) {
                 utils.hideElement('yearDetails');
                 return;
             }
-            
             const composite = state.data.indexComposite[state.ui.selectedDC];
-            
             if (!composite || composite[indexYear] === '-' || !YEARS.includes(indexYear)) {
                 utils.hideElement('yearDetails');
                 return;
             }
-            
             utils.showElement('yearDetails');
             utils.setElementText('selectedYearTitle', `${selectedYear} Rate Calculation (Based on ${indexYear} Index)`);
-            
             updateComponentBreakdown(indexYear);
             updateRateCalculation(selectedYear, indexYear);
         }
@@ -1010,44 +1056,30 @@
             const container = document.getElementById('componentBreakdown');
             const composite = state.data.indexComposite[state.ui.selectedDC];
             const compositeValue = utils.safeParseFloat(composite[indexYear]);
-
             let html = '';
-
             state.data.indexWeights.forEach(weight => {
                 const componentData = state.data.indexComponents[weight.INDEX];
                 if (!componentData || !componentData[state.ui.selectedDC]) return;
-                
                 const displayName = COMPONENT_NAME_MAP[weight.INDEX] || weight.INDEX;
-                
                 const value = utils.safeParseFloat(componentData[state.ui.selectedDC][indexYear]);
-                
                 html += `
                     <div class="component-row">
                         <div class="component-name">${displayName} (${(weight.WEIGHT * 100).toFixed(0)}%)</div>
-                        <div class="component-value ${value >= 0 ? 'positive' : 'negative'}">
-                            ${utils.formatPercent(value)}
-                        </div>
+                        <div class="component-value ${value >= 0 ? 'positive' : 'negative'}">${utils.formatPercent(value)}</div>
                     </div>
                 `;
             });
-            
             const adjustedValue = compositeValue * state.ui.modelFactor;
-            
             html += `
                 <div class="total-row">
                     <div class="total-label">${indexYear} Composite Index</div>
-                    <div class="total-value ${compositeValue >= 0 ? 'positive' : 'negative'}">
-                        ${utils.formatPercent(compositeValue)}
-                    </div>
+                    <div class="total-value ${compositeValue >= 0 ? 'positive' : 'negative'}">${utils.formatPercent(compositeValue)}</div>
                 </div>
                 <div class="total-row">
                     <div class="total-label">After Model Factor (${(state.ui.modelFactor * 100).toFixed(1)}%)</div>
-                    <div class="total-value ${adjustedValue >= 0 ? 'positive' : 'negative'}">
-                        ${utils.formatPercent(adjustedValue)}
-                    </div>
+                    <div class="total-value ${adjustedValue >= 0 ? 'positive' : 'negative'}">${utils.formatPercent(adjustedValue)}</div>
                 </div>
             `;
-            
             container.innerHTML = html;
         }
         
@@ -1056,26 +1088,23 @@
             const compositeValue = utils.safeParseFloat(composite[indexYear]);
             const adjustedValue = compositeValue * state.ui.modelFactor;
             const meetsThreshold = Math.abs(adjustedValue) >= state.ui.threshold;
-            
             const prevRate = calculateRateForYear((parseInt(selectedYear) - 1).toString(), state.ui.selectedDC);
-            
             const newRate = meetsThreshold ? prevRate * (1 + adjustedValue) : prevRate;
-            
             utils.setElementText('prevRate', utils.formatCurrency(prevRate));
             utils.setElementText('newRate', utils.formatCurrency(newRate));
-            
             if (meetsThreshold) {
                 utils.setElementText('adjPercent', utils.formatPercent(adjustedValue));
                 document.getElementById('adjPercent').className = `stat-value ${adjustedValue >= 0 ? 'positive' : 'negative'}`;
                 utils.showElement('thresholdNote');
                 utils.hideElement('noChangeNote');
+                document.getElementById('thresholdNote').textContent = `Rate adjustment applied because the adjusted index (${utils.formatPercent(adjustedValue)}) exceeded the threshold of ${utils.formatPercent(state.ui.threshold, 1)}.`;
             } else {
                 utils.setElementText('adjPercent', 'No Change');
                 document.getElementById('adjPercent').className = 'stat-value';
                 utils.hideElement('thresholdNote');
                 utils.showElement('noChangeNote');
+                document.getElementById('noChangeNote').textContent = `No rate adjustment applied because the adjusted index (${utils.formatPercent(adjustedValue)}) did not exceed the threshold of ${utils.formatPercent(state.ui.threshold, 1)}.`;
             }
-            
             document.getElementById('newRate').className = `stat-value ${newRate > prevRate ? 'positive' : (newRate < prevRate ? 'negative' : '')}`;
         }
         
@@ -1083,33 +1112,23 @@
             const ctx = document.getElementById('historicalChart').getContext('2d');
             const composite = state.data.indexComposite[state.ui.selectedDC];
             const dcInfo = state.data.targetDCs.find(dc => dc.KMA === state.ui.selectedDC);
-            
             if (!composite || !dcInfo) return;
-            
             const chartYears = ['2019', '2020', '2021', '2022', '2023', '2024', '2025'];
             const indexYears = YEARS;
-            
             let currentRate = dcInfo.BUNDLE_RPM;
             const rates = [currentRate];
             const adjustments = [0];
-            
             for (let i = 0; i < indexYears.length; i++) {
                 const indexYear = indexYears[i];
                 const compositeValue = utils.safeParseFloat(composite[indexYear]);
                 const adjustedValue = compositeValue * state.ui.modelFactor;
-                
                 adjustments.push(adjustedValue * 100);
-                
                 if (Math.abs(adjustedValue) >= state.ui.threshold) {
                     currentRate = currentRate * (1 + adjustedValue);
                 }
                 rates.push(currentRate);
             }
-            
-            if (state.chart) {
-                state.chart.destroy();
-            }
-            
+            if (state.chart) state.chart.destroy();
             state.chart = new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -1141,68 +1160,31 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    interaction: {
-                        mode: 'index',
-                        intersect: false,
-                    },
+                    interaction: { mode: 'index', intersect: false },
                     plugins: {
-                        legend: {
-                            display: true,
-                            position: 'top'
-                        },
+                        legend: { display: true, position: 'top' },
                         tooltip: {
                             callbacks: {
                                 label: function(context) {
-                                    if (context.dataset.label.includes('Rate')) {
-                                        return `${context.dataset.label}: ${utils.formatCurrency(context.parsed.y)}`;
-                                    } else {
-                                        return `${context.dataset.label}: ${context.parsed.y.toFixed(2)}%`;
-                                    }
+                                    if (context.dataset.label.includes('Rate')) return `${context.dataset.label}: ${utils.formatCurrency(context.parsed.y)}`;
+                                    else return `${context.dataset.label}: ${context.parsed.y.toFixed(2)}%`;
                                 },
                                 afterLabel: function(context) {
-                                    if (context.dataset.label.includes('Index') && context.dataIndex >= 1) {
-                                        const indexYear = indexYears[context.dataIndex - 1];
-                                        return `Based on ${indexYear} index`;
-                                    }
+                                    if (context.dataset.label.includes('Index') && context.dataIndex >= 1) return `Based on ${indexYears[context.dataIndex - 1]} index`;
                                     return '';
                                 }
                             }
                         }
                     },
                     scales: {
-                        'y-rate': {
-                            type: 'linear',
-                            display: true,
-                            position: 'left',
-                            ticks: {
-                                callback: (value) => utils.formatCurrency(value)
-                            },
-                            grid: {
-                                color: '#2a3f5f'
-                            }
-                        },
-                        'y-percentage': {
-                            type: 'linear',
-                            display: true,
-                            position: 'right',
-                            ticks: {
-                                callback: (value) => value + '%'
-                            },
-                            grid: {
-                                drawOnChartArea: false,
-                            }
-                        },
-                        x: {
-                            grid: {
-                                color: '#2a3f5f'
-                            }
-                        }
+                        'y-rate': { type: 'linear', display: true, position: 'left', ticks: { callback: (value) => utils.formatCurrency(value) }, grid: { color: '#2a3f5f' } },
+                        'y-percentage': { type: 'linear', display: true, position: 'right', ticks: { callback: (value) => value + '%' }, grid: { drawOnChartArea: false } },
+                        x: { grid: { color: '#2a3f5f' } }
                     }
                 }
             });
         }
         
-        // Initialize application when DOM is loaded
         window.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
